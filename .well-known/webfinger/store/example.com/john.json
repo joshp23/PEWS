@@ -1,0 +1,28 @@
+{
+  "subject" : "acct:john@example.com",
+  "properties" : { "http://packetizer.com/ns/name" : "John Smith" },
+  "links" :
+  [
+    {
+      "rel" : "http://webfinger.net/rel/avatar",
+      "type" : "image/jpeg",
+      "href" : "http://example.com/images/face.png"
+    },
+    {
+      "rel" : "http://webfinger.net/rel/profile-page",
+      "href" : "http://profile.example.com/u/smithj"
+    },
+    {
+      "rel" : "http://packetizer.com/rel/blog",
+      "href" : "http://blog.example.com/smithj"
+    },
+	{
+       "rel" : "http://specs.openid.net/auth/2.0/provider",
+       "href" : "https://profile.example.com/u/smithj"
+     },
+	{
+       "rel" : "payment",
+       "href" : "https://www.paypal.me/JohnSmith"
+     }
+  ]
+}
