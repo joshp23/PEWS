@@ -29,6 +29,7 @@ The `PEWS` section of a PEWS resource file is not a part of the general Webfinge
 	* `updatePass:user@domain.com`  
 	* `pass:pewpewpassword`  
 	* `newPass:YourFancyNEwPassword`  
+
 If a user is `class:admin` then this user can alter the password of other users by adding `auth:admin-name@example.com` to the above post data, sending their own password as `pass:password`.
 ### TODO
 1. Finish api for adding, removing, and editing resource `properites` and `links`
