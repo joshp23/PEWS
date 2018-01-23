@@ -36,3 +36,4 @@ If a user is `class:admin` then this user can alter the password of other users 
 2. Add option to allow users to remove their own resource file
 3. Additional storage options (sqlite, etc.)
 4. Manager interface
+5. Add in server-manager API examples (it's in the code... for now)
