@@ -1,6 +1,19 @@
 {
+  "PEWS":
+  {"class":"user","pass":"pewpewpassword"
+  },
   "subject" : "acct:john@example.com",
-  "properties" : { "http://packetizer.com/ns/name" : "John Smith" },
+  "properties" :
+  { 
+    "http://packetizer.com/ns/name" : "John Smith",
+    "http://blgx.example.net/ns/version" : "1.5.1",
+     "http://blgx.example.net/ns/ext" : null
+  },
+  "aliases" :
+  [
+    "https://social.example.com/u/john",
+	"https://mstdn.example.com/john"
+  ],
   "links" :
   [
     {
@@ -14,15 +27,21 @@
     },
     {
       "rel" : "http://packetizer.com/rel/blog",
-      "href" : "http://blog.example.com/smithj"
+      "href" : "http://blog.example.com/smithj",
+ 
+      "titles" :
+      {
+        "en-us" : "The Adventures of John Smith",
+        "fr" : "Les Aventures de John Smith"
+      },
+      "properties" :
+      {
+        "http://example.com/role" : "author"
+      }
     },
 	{
        "rel" : "http://specs.openid.net/auth/2.0/provider",
        "href" : "https://profile.example.com/u/smithj"
-     },
-	{
-       "rel" : "payment",
-       "href" : "https://www.paypal.me/JohnSmith"
      }
   ]
 }
