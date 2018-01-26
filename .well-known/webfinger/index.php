@@ -2,7 +2,7 @@
 /*	
  ------------------------------------------------------------
  *															*
- *	PEWS (pew! pew!) - PHP Easy WebFinger Server 1.5.2  	*
+ *	PEWS (pew! pew!) - PHP Easy WebFinger Server 1.5.3  	*
  *															*
  *	This script enables webfinger support on a server that	*
  *	handles one or more domains. 							*
@@ -235,8 +235,8 @@ function pews_manager( $auth, $password ) {
 	// add a new host to the server TODO url validations, etc
 	if(isset($_POST['addHost'])) {
 		if($auth) {
-			$resource = pews_parse_account_string( $_POST['addHost'] );
-			$new = PEWS_DATA_STORE . '/' . $resource['host'];
+			$host = preg_replace('/^((\.*)(\/*))*/', '', $_POST['addHost']);
+			$new = PEWS_DATA_STORE . '/' . $host;
 			if (!file_exists($new)){
 				$make = mkdir($new);
 				if(!$make) {
@@ -247,7 +247,7 @@ function pews_manager( $auth, $password ) {
 				chmod( $new, 0755 );
 					http_response_code(201);
 					$return['statusCode'] = 201;
-					$return['message'] = 'host: '. $resource['host'] .' successfully added';
+					$return['message'] = 'host: '. $host .' successfully added';
 				}
 			} else {
 				http_response_code(200);
@@ -262,8 +262,8 @@ function pews_manager( $auth, $password ) {
 	// delete a host AND all resources
 	} elseif(isset($_POST['delHost'])) {
 		if($auth) {
-			$resource = pews_parse_account_string( $_POST['delHost'] );
-			$old = PEWS_DATA_STORE . '/' . $resource['host'];
+			$host = preg_replace('/^((\.*)(\/*))*/', '', $_POST['addHost']);
+			$old = PEWS_DATA_STORE . '/' . $host;
 			if (file_exists($old)) {
 				$files = glob($old.'/*');
 				foreach($files as $file) {
@@ -278,7 +278,7 @@ function pews_manager( $auth, $password ) {
 				} else {
 					http_response_code(200);
 					$return['statusCode'] = 200;
-					$return['message'] = 'host: '.$resource['host'].' successfully removed';
+					$return['message'] = 'host: '.$host.' successfully removed';
 				}
 			} else {
 				http_response_code(200);
