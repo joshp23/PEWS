@@ -2,7 +2,7 @@
 /*	
  ------------------------------------------------------------
  *															*
- *	PEWS (pew! pew!) - PHP Easy WebFinger Server 1.5.1  	*
+ *	PEWS (pew! pew!) - PHP Easy WebFinger Server 1.5.2  	*
  *															*
  *	This script enables webfinger support on a server that	*
  *	handles one or more domains. 							*
@@ -160,21 +160,9 @@ if ($req === 'GET') {
 	die();
 }
 
-function pews_auth( $acct, $key, $admin ) {
-	if(strpos($acct, '@')) {
-		$acct = explode('@', $acct);
-		$user = preg_replace('/^((\.*)(\/*))*/', '', $acct[0]);
-		$host = preg_replace('/^((\.*)(\/*))*/', '', $acct[1]);
-		if(!$admin  && $host !== $_SERVER['HTTP_HOST']) {
-			$return['is'] = false;
-			$return['info'] = 'This is not your account';
-			return $return;
-		}
-	} else {
-		$user = preg_replace('/^((\.*)(\/*))*/', '', $acct);
-		$host = $_SERVER['HTTP_HOST']; 
-	}
-	$acct_file = PEWS_DATA_STORE."/".$host."/".$user.".json";
+function pews_auth( $resource, $key, $admin ) {
+	$resource = pews_parse_account_string( $resource );
+	$acct_file = PEWS_DATA_STORE ."/". $resource['host'] . "/" . $resource['user'].".json";
 	// is there an account on file?
 	if(file_exists($acct_file)) {
 		$data = json_decode(file_get_contents($acct_file), true);
@@ -247,8 +235,8 @@ function pews_manager( $auth, $password ) {
 	// add a new host to the server TODO url validations, etc
 	if(isset($_POST['addHost'])) {
 		if($auth) {
-			$host = $_POST['addHost'];
-			$new = PEWS_DATA_STORE . '/' . $host;
+			$resource = pews_parse_account_string( $_POST['addHost'] );
+			$new = PEWS_DATA_STORE . '/' . $resource['host'];
 			if (!file_exists($new)){
 				$make = mkdir($new);
 				if(!$make) {
@@ -259,7 +247,7 @@ function pews_manager( $auth, $password ) {
 				chmod( $new, 0755 );
 					http_response_code(201);
 					$return['statusCode'] = 201;
-					$return['message'] = 'host: '.$host.' successfully added';
+					$return['message'] = 'host: '. $resource['host'] .' successfully added';
 				}
 			} else {
 				http_response_code(200);
@@ -274,8 +262,8 @@ function pews_manager( $auth, $password ) {
 	// delete a host AND all resources
 	} elseif(isset($_POST['delHost'])) {
 		if($auth) {
-			$host = $_POST['delHost'];
-			$old = PEWS_DATA_STORE . '/' . $host;
+			$resource = pews_parse_account_string( $_POST['delHost'] );
+			$old = PEWS_DATA_STORE . '/' . $resource['host'];
 			if (file_exists($old)) {
 				$files = glob($old.'/*');
 				foreach($files as $file) {
@@ -290,7 +278,7 @@ function pews_manager( $auth, $password ) {
 				} else {
 					http_response_code(200);
 					$return['statusCode'] = 200;
-					$return['message'] = 'host: '.$host.' successfully removed';
+					$return['message'] = 'host: '.$resource['host'].' successfully removed';
 				}
 			} else {
 				http_response_code(200);
@@ -305,30 +293,21 @@ function pews_manager( $auth, $password ) {
 	// Add a new resource account!
 	} elseif(isset($_POST['addResource'])) {
 		if($auth) {
-			$acct = $_POST['addResource'];
-			if(strpos($acct, '@')) {
-				$part = explode('@', $acct);
-				$user = preg_replace('/^((\.*)(\/*))*/', '', $part[0]);
-				$host = preg_replace('/^((\.*)(\/*))*/', '', $part[1]);
-			} else {
-				$user = preg_replace('/^((\.*)(\/*))*/', '', $acct);
-				$host = $_SERVER['HTTP_HOST']; 
-				$acct = $user.'@'.$host;
-			}
-			$newHost = PEWS_DATA_STORE . '/' . $host;
+			$resource = pews_parse_account_string( $_POST['addResource'] );
+			$newHost = PEWS_DATA_STORE . '/' . $resource['host'];
 			if (!file_exists($newHost)){
 				http_response_code(404);
-				$response['statusCode'] = ['404'];
-				$response['message'] = ['Host '.$host.' is not present on this system. Create that first, then add resource accounts to it.'];
+				$response['statusCode'] = '404';
+				$response['message'] = 'The host '. $resource['host'] .' is not present, and must be on this system before resource accounts are added to it.';
 			} else {
-				$newUser = $newHost.'/'.$user.'.json';
+				$newUser = $newHost .'/'. $resource['user'] .'.json';
 				if (!file_exists($newUser)){
 					$class 	= isset($_POST['setClass']) && ($_POST['setClass'] === 'admin' || $_POST['setClass'] === 'user') ? 
 								$_POST['setClass'] : 
 									'user';
 					$pass= isset($_POST['setPass']) ? 'pews-hashed:'.password_hash($_POST['setPass'], PASSWORD_DEFAULT) : 'pewpewpassword';
 					$data['PEWS'] = array( 'class' => $class, 'pass' => $pass );
-					$data['subject'] = 'acct:'.$acct;
+					$data['subject'] = 'acct:'. $resource['acct'];
 					if(isset($_POST['setAliases'])) {
 						$aliases = $_POST['setAliases'];
 						$data['aliases'] = is_array($aliases) ? $aliases : array($aliases);
@@ -374,7 +353,7 @@ function pews_manager( $auth, $password ) {
 					chmod( $newUser, 0755 );
 						http_response_code(201);
 						$return['statusCode'] = 201;
-						$return['message'] = 'Resource: '.$acct.' successfully added';
+						$return['message'] = 'Resource: '.$resource['acct'].' successfully added';
 					}
 				} else {
 					http_response_code(200);
@@ -390,17 +369,8 @@ function pews_manager( $auth, $password ) {
 	// Remove a resource/account from the server
 	} elseif(isset($_POST['delResource'])) {
 		if($auth) {
-			$acct = $_POST['delResource'];
-			if(strpos($acct, '@')) {
-				$part = explode('@', $acct);
-				$user = preg_replace('/^((\.*)(\/*))*/', '', $part[0]);
-				$host = preg_replace('/^((\.*)(\/*))*/', '', $part[1]);
-			} else {
-				$user = preg_replace('/^((\.*)(\/*))*/', '', $acct);
-				$host = $_SERVER['HTTP_HOST']; 
-				$acct = $user.'@'.$host;
-			}
-			$acct_file = PEWS_DATA_STORE."/".$host."/".$user.".json";
+			$resource = pews_parse_account_string( $_POST['delResource'] );
+			$acct_file = PEWS_DATA_STORE ."/". $resource['host'] ."/". $resource['user'] .".json";
 			if (file_exists($acct_file)) {
 					$destroy = unlink($acct_file);
 					if(!$destroy) {
@@ -410,7 +380,7 @@ function pews_manager( $auth, $password ) {
 					} else {
 						http_response_code(200);
 						$return['statusCode'] = 200;
-						$return['message'] = 'Acct: '.$acct.' successfully removed';
+						$return['message'] = 'Acct: '. $resource['acct'] .' successfully removed';
 					}
 			} else {
 				http_response_code(200);
@@ -424,24 +394,15 @@ function pews_manager( $auth, $password ) {
 		return $return;
 	// adding an alias to a resource
 	} elseif(isset($_POST['addAlias'])) {
-		$acct = $_POST['addAlias'];
-		if(strpos($acct, '@')) {
-			$part = explode('@', $acct);
-			$user = preg_replace('/^((\.*)(\/*))*/', '', $part[0]);
-			$host = preg_replace('/^((\.*)(\/*))*/', '', $part[1]);
-		} else {
-			$user = preg_replace('/^((\.*)(\/*))*/', '', $acct);
-			$host = $_SERVER['HTTP_HOST']; 
-			$acct = $user.'@'.$host;
-		}
+		$resource = pews_parse_account_string( $_POST['addAlias'] );
 		switch ($auth) {
 			case false:
-				$reauth = pews_auth( $acct, $password, false );
+				$reauth = pews_auth( $resource['acct'], $password, false );
 				$auth = $reauth['is'];
 			case true:
 				if(isset($_POST['newAlias'])) {
 					$newAlias = $_POST['newAlias'];
-					$acct_file = PEWS_DATA_STORE . '/' . $host .'/'. $user . '.json';
+					$acct_file = PEWS_DATA_STORE . '/' . $resource['host'] .'/'. $resource['user'] . '.json';
 					if (file_exists($acct_file)) {
 						$data = json_decode(file_get_contents($acct_file), true);
 						$aliases = isset($data['aliases']) ? $data['aliases'] : array();
@@ -454,12 +415,12 @@ function pews_manager( $auth, $password ) {
 							$return['info'] = 'Could not write to resource file';
 						} else {
 							$return['is'] = true;
-							$return['info'] = 'Alias: '.$newAlias.' added to '.$acct;
+							$return['info'] = 'Alias: '.$newAlias.' added to '.$resource['acct'];
 						}
 					} else {
 						http_response_code(404);
 						$return['statusCode'] = 404;
-						$return['message']    = 'Account ['.$acct.'] not found.';
+						$return['message']    = 'Account: '.$resource['acct'].' not found.';
 					}
 				} else {
 					http_response_code(400);
@@ -475,24 +436,15 @@ function pews_manager( $auth, $password ) {
 		}
 	// remove an alias from a resource
 	} elseif(isset($_POST['delAlias'])) {
-		$acct = $_POST['delAlias'];
-		if(strpos($acct, '@')) {
-			$part = explode('@', $acct);
-			$user = preg_replace('/^((\.*)(\/*))*/', '', $part[0]);
-			$host = preg_replace('/^((\.*)(\/*))*/', '', $part[1]);
-		} else {
-			$user = preg_replace('/^((\.*)(\/*))*/', '', $acct);
-			$host = $_SERVER['HTTP_HOST']; 
-			$acct = $user.'@'.$host;
-		}
+		$resource = pews_parse_account_string( $_POST['delAlias'] );
 		switch ($auth) {
 			case false:
-				$reauth = pews_auth( $acct, $password, false );
+				$reauth = pews_auth( $resource['acct'], $password, false );
 				$auth = $reauth['is'];
 			case true:
 				if(isset($_POST['oldAlias'])) {
 					$oldAlias = $_POST['oldAlias'];
-					$acct_file = PEWS_DATA_STORE . '/' . $host .'/'. $user . '.json';
+					$acct_file = PEWS_DATA_STORE . '/' . $resource['host'] .'/'. $resource['user'] . '.json';
 					if (file_exists($acct_file)) {
 						$data = json_decode(file_get_contents($acct_file), true);
 						$aliases = isset($data['aliases']) ? $data['aliases'] : null;
@@ -512,7 +464,7 @@ function pews_manager( $auth, $password ) {
 								$return['info'] = 'Could not write to resource file';
 							} else {
 								$return['is'] = true;
-								$return['info'] = 'Alias: '.$oldAlias.' removed '.$acct;
+								$return['info'] = 'Alias: '.$oldAlias.' removed '.$resource['acct'];
 							}
 						} else {
 							http_response_code(100);
@@ -522,7 +474,7 @@ function pews_manager( $auth, $password ) {
 					} else {
 						http_response_code(404);
 						$return['statusCode'] = 404;
-						$return['message']    = 'Account ['.$acct.'] not found.';
+						$return['message']    = 'Account: '.$resource['acct'].' not found.';
 					}
 				} else {
 					http_response_code(400);
@@ -549,24 +501,15 @@ function pews_manager( $auth, $password ) {
 	} elseif(isset($_POST['delLink'])) {
 	   // Update a Password   
 	} elseif(isset($_POST['updatePass'])) {
-		$acct = $_POST['updatePass'];
-		if(strpos($acct, '@')) {
-			$part = explode('@', $acct);
-			$user = preg_replace('/^((\.*)(\/*))*/', '', $part[0]);
-			$host = preg_replace('/^((\.*)(\/*))*/', '', $part[1]);
-		} else {
-			$user = preg_replace('/^((\.*)(\/*))*/', '', $acct);
-			$host = $_SERVER['HTTP_HOST']; 
-			$acct = $user.'@'.$host;
-		}
+		$resource = pews_parse_account_string( $_POST['updatePass'] );
 		switch ($auth) {
 			case false:
-				$reauth = pews_auth( $acct, $password, false );
+				$reauth = pews_auth( $resource['acct'], $password, false );
 				$auth = $reauth['is'];
 			case true:
 				if(isset($_POST['newPass'])) {
 					$newPass = $_POST['newPass'];
-					$acct_file = PEWS_DATA_STORE . '/' . $host .'/'. $user . '.json';
+					$acct_file = PEWS_DATA_STORE .'/'. $resource['host'] .'/'. $resource['user'] .'.json';
 					if (file_exists($acct_file)) {
 						$data = json_decode(file_get_contents($acct_file), true);
 						$userData = $data['PEWS'];
@@ -585,7 +528,7 @@ function pews_manager( $auth, $password ) {
 					} else {
 						http_response_code(404);
 						$return['statusCode'] = 404;
-						$return['message']    = 'Account ['.$acct.'] not found.';
+						$return['message']    = 'Account ['. $resource['acct'] .'] not found.';
 					}
 				} else {
 					http_response_code(400);
@@ -604,6 +547,30 @@ function pews_manager( $auth, $password ) {
 		$return['statusCode'] = 400;
 		$return['message']    = "Missing parameter, please check your query,";
 	}
+	return $return;
+}
+function pews_parse_account_string ( $acct ) {
+	if(strpos($acct, '@')) {
+		$parts = explode('@', $acct[1]);
+		$user = preg_replace('/^((\.*)(\/*))*/', '', $parts[0]);
+		$host = preg_replace('/^((\.*)(\/*))*/', '', $parts[1]);
+//		if(PEWS_DOMAIN_STRICT && $host !== $_SERVER['HTTP_HOST']) {
+//			http_response_code(400);
+//			header("Content-Type: application/json");
+//			print json_encode(array(
+//				'statusCode' => 400,
+//				'message'    => "Query and server hosts do not match."
+//			), JSON_UNESCAPED_SLASHES);
+//			die();
+//		}
+	} else {
+		$user = preg_replace('/^((\.*)(\/*))*/', '', $str);
+		$host = $_SERVER['HTTP_HOST'];
+		$acct = $user . '@' . $host;
+	}
+	$return['user'] = $user;
+	$return['host'] = $host;
+	$return['acct'] = $acct;
 	return $return;
 }
 ?>
