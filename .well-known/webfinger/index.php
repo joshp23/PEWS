@@ -2,7 +2,7 @@
 /*	
  *------------------------------------------------------------
  *															
- *	PEWS (pew! pew!) - PHP Easy WebFinger Server 1.7.0 
+ *	PEWS (pew! pew!) - PHP Easy WebFinger Server 1.7.2
  *
  *	This script enables webfinger support on a server that
  *	handles one or more domains.
@@ -454,14 +454,16 @@ function pews_manager( $auth, $password ) {
 					if (file_exists($acct_file)) {
 						$data = json_decode(file_get_contents($acct_file), true);
 						$aliases = isset($data['aliases']) ? $data['aliases'] : null;
-						if($aliases !== null && in_array( $oldAlias, $aliases ) ) { 
-							$oldAliasArray[] = $oldAlias;
-							$newAliasesArray = array_diff( $aliases , $oldAliasArray);
+
+						if($aliases !== null && in_array( $oldAlias, $aliases ) ) {
+							unset($aliases[$oldAlias]);
 							if(empty($newAliasesArray)) { 
 								unset ($data['aliases']);
 							} else {
 								$data['aliases'] = $newAliasesArray;
 							}
+
+
 							$data = json_encode($data, JSON_UNESCAPED_SLASHES);
 							$success = file_put_contents( $acct_file, $data );
 							if($success === false) {
@@ -609,7 +611,11 @@ function pews_manager( $auth, $password ) {
 						$props = isset($data['properties']) ? $data['properties'] : array();
 						if(array_key_exists($propKey, $props)){
 							unset($props[$propKey]);
-							$data['properties'] = $props;
+							if(empty($props)) { 
+								unset ($data['properties']);
+							} else {
+								$data['properties'] = $props;
+							}
 							$data = json_encode($data, JSON_UNESCAPED_SLASHES);
 							$success = file_put_contents( $acct_file, $data );
 							if($success === false) {
