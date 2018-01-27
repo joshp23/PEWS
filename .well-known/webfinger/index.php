@@ -2,7 +2,7 @@
 /*	
  *------------------------------------------------------------
  *															
- *	PEWS (pew! pew!) - PHP Easy WebFinger Server 1.6.0 
+ *	PEWS (pew! pew!) - PHP Easy WebFinger Server 1.7.0 
  *
  *	This script enables webfinger support on a server that
  *	handles one or more domains.
@@ -402,9 +402,9 @@ function pews_manager( $auth, $password ) {
 				$reauth = pews_auth( $resource, $password );
 				$auth = $reauth['class'];
 			case true:
-				$resource = pews_parse_account_string( $resource );
 				if(isset($_POST['newAlias'])) {
 					$newAlias = $_POST['newAlias'];
+					$resource = pews_parse_account_string( $resource );
 					$acct_file = PEWS_DATA_STORE . '/' . $resource['host'] .'/'. $resource['user'] . '.json';
 					if (file_exists($acct_file)) {
 						$data = json_decode(file_get_contents($acct_file), true);
@@ -414,11 +414,13 @@ function pews_manager( $auth, $password ) {
 						$data = json_encode($data, JSON_UNESCAPED_SLASHES);
 						$success = file_put_contents( $acct_file, $data );
 						if($success === false) {
-							$return['is'] = false;
-							$return['info'] = 'Could not write to resource file';
+							http_response_code(500);
+							$return['statusCode'] = 500;
+							$return['message'] = 'Could not write to resource file';
 						} else {
-							$return['is'] = true;
-							$return['info'] = 'Alias: '.$newAlias.' added to '.$resource['acct'];
+							http_response_code(200);
+							$return['statusCode'] = 200;
+							$return['message'] = 'Alias: '.$newAlias.' added to '.$resource['acct'];
 						}
 					} else {
 						http_response_code(404);
@@ -445,9 +447,9 @@ function pews_manager( $auth, $password ) {
 				$reauth = pews_auth( $resource, $password );
 				$auth = $reauth['class'];
 			case true:
-				$resource = pews_parse_account_string( $resource );
 				if(isset($_POST['oldAlias'])) {
 					$oldAlias = $_POST['oldAlias'];
+					$resource = pews_parse_account_string( $resource );
 					$acct_file = PEWS_DATA_STORE . '/' . $resource['host'] .'/'. $resource['user'] . '.json';
 					if (file_exists($acct_file)) {
 						$data = json_decode(file_get_contents($acct_file), true);
@@ -464,10 +466,11 @@ function pews_manager( $auth, $password ) {
 							$success = file_put_contents( $acct_file, $data );
 							if($success === false) {
 								http_response_code(500);
-								$return['is'] = false;
+								$return['statusCode'] = 500;
 								$return['info'] = 'Could not write to resource file';
 							} else {
-								$return['is'] = true;
+								http_response_code(200);
+								$return['statusCode'] = 200;
 								$return['info'] = 'Alias: '.$oldAlias.' removed '.$resource['acct'];
 							}
 						} else {
@@ -493,11 +496,153 @@ function pews_manager( $auth, $password ) {
 				$return['info'] = $reauth['info'];
 		}
 	} elseif(isset($_POST['addProp'])) {
-	   // Do Something    
+		$resource = $_POST['addProp'];
+		switch ($auth) {
+			case false:
+				$reauth = pews_auth( $resource, $password );
+				$auth = $reauth['class'];
+			case true:
+				if(isset($_POST['propKey']) && isset($_POST['propVal'])) {
+					$propKey = $_POST['propKey'];
+					$propVal = $_POST['propVal'];
+					$resource = pews_parse_account_string( $resource );
+					$acct_file = PEWS_DATA_STORE .'/'. $resource['host'] .'/'. $resource['user'] .'.json';
+					if (file_exists($acct_file)) {
+						$data = json_decode(file_get_contents($acct_file), true);
+						$oldProps = isset($data['properties']) ? $data['properties'] : array();
+						if(array_key_exists($propKey, $oldProps)) {
+							http_response_code(409);
+							$return['statusCode'] = 409;
+							$return['message'] = $propKey . ' exists as '. $oldProps[$propKey] .' . Use editProp to overwrite.';
+						} else {
+							$newProps = array($propKey => $propVal);
+							$props = array_replace($oldProps, $newProps);
+							$data['properties'] = $props;
+							$data = json_encode($data, JSON_UNESCAPED_SLASHES);
+							$success = file_put_contents( $acct_file, $data );
+							if($success === false) {
+								http_response_code(500);
+								$return['statusCode'] = 500;
+								$return['message'] = 'Could not write to resource file';
+							} else {
+								http_response_code(200);
+								$return['statusCode'] = 200;
+								$return['message'] = 'Property element added to '.$resource['acct'];
+							}
+						}
+					} else {
+						http_response_code(404);
+						$return['statusCode'] = 404;
+						$return['message']    = 'Account '. $resource['acct'] .' not found.';
+					}
+				} else {
+					http_response_code(400);
+					$return['statusCode'] = 400;
+					$return['message']    = "This function requires both propKey and propVal, please check your query,";
+				}
+				break;
+			default:
+				http_response_code(401);
+				$return['statusCode'] = 401;
+				$return['message']    = "You can only add new resource properties with correct credentials";
+				$return['info'] = $reauth['info'];
+		}
 	} elseif(isset($_POST['editProp'])) {
-	   // Do Something    
+		$resource = $_POST['editProp'];
+		switch ($auth) {
+			case false:
+				$reauth = pews_auth( $resource, $password );
+				$auth = $reauth['class'];
+			case true:
+				if(isset($_POST['propKey']) && isset($_POST['propVal'])) {
+					$propKey = $_POST['propKey'];
+					$propVal = $_POST['propVal'];
+					$resource = pews_parse_account_string( $resource );
+					$acct_file = PEWS_DATA_STORE .'/'. $resource['host'] .'/'. $resource['user'] .'.json';
+					if (file_exists($acct_file)) {
+						$data = json_decode(file_get_contents($acct_file), true);
+						$oldProps = isset($data['properties']) ? $data['properties'] : array();
+						$newProps = array($propKey => $propVal);
+						$props = array_replace($oldProps, $newProps);
+						$data['properties'] = $props;
+						$data = json_encode($data, JSON_UNESCAPED_SLASHES);
+						$success = file_put_contents( $acct_file, $data );
+						if($success === false) {
+							http_response_code(500);
+							$return['statusCode'] = 500;
+							$return['message'] = 'Could not write to resource file';
+						} else {
+							http_response_code(200);
+							$return['statusCode'] = 200;
+							$return['message'] = 'Property for'. $resource['acct'] .' updated.';
+						}
+					} else {
+						http_response_code(404);
+						$return['statusCode'] = 404;
+						$return['message']    = 'Account '. $resource['acct'] .' not found.';
+					}
+				} else {
+					http_response_code(400);
+					$return['statusCode'] = 400;
+					$return['message']    = "This function requires both propKey and propVal, please check your query,";
+				}
+				break;
+			default:
+				http_response_code(401);
+				$return['statusCode'] = 401;
+				$return['message']    = "You can only edit resource properties with correct credentials";
+				$return['info'] = $reauth['info'];
+		}
 	} elseif(isset($_POST['delProp'])) {
-	   // Do Something    
+		$resource = $_POST['delProp'];
+		switch ($auth) {
+			case false:
+				$reauth = pews_auth( $resource, $password );
+				$auth = $reauth['class'];
+			case true:
+				if(isset($_POST['propKey'])) {
+					$propKey = $_POST['propKey'];
+					$resource = pews_parse_account_string( $resource );
+					$acct_file = PEWS_DATA_STORE .'/'. $resource['host'] .'/'. $resource['user'] .'.json';
+					if (file_exists($acct_file)) {
+						$data = json_decode(file_get_contents($acct_file), true);
+						$props = isset($data['properties']) ? $data['properties'] : array();
+						if(array_key_exists($propKey, $props)){
+							unset($props[$propKey]);
+							$data['properties'] = $props;
+							$data = json_encode($data, JSON_UNESCAPED_SLASHES);
+							$success = file_put_contents( $acct_file, $data );
+							if($success === false) {
+								http_response_code(500);
+								$return['statusCode'] = 500;
+								$return['message'] = 'Could not write to resource file';
+							} else {
+								http_response_code(200);
+								$return['statusCode'] = 200;
+								$return['message'] = 'Property for '. $resource['acct'] .' deleted.';
+							}
+						} else {
+							http_response_code(200);
+							$return['statusCode'] = 200;
+							$return['message'] = 'Nothing to delete, property already absent from server.';
+						}
+					} else {
+						http_response_code(404);
+						$return['statusCode'] = 404;
+						$return['message']    = 'Account ['. $resource['acct'] .'] not found.';
+					}
+				} else {
+					http_response_code(400);
+					$return['statusCode'] = 400;
+					$return['message']    = "Missing parameter: propKey, please check your query,";
+				}
+				break;
+			default:
+				http_response_code(401);
+				$return['statusCode'] = 401;
+				$return['message']    = "You can only delete resource properties with correct credentials";
+				$return['info'] = $reauth['info'];
+		}
 	} elseif(isset($_POST['addLink'])) {
 	   // Do Something    
 	} elseif(isset($_POST['editLink'])) {
@@ -544,7 +689,7 @@ function pews_manager( $auth, $password ) {
 			default:
 				http_response_code(401);
 				$return['statusCode'] = 401;
-				$return['message']    = "You can change your own password if you know your credentials";
+				$return['message']    = "You can add only change your own password with correct credentials";
 				$return['info'] = $reauth['info'];
 		}
 	} else {

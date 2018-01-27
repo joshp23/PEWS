@@ -32,8 +32,7 @@ The `PEWS` section of a PEWS resource file is not a part of the general Webfinge
 
 If a user is `class:admin` then this user can alter the password of other users by adding `auth:admin-name@example.com` to the above post data, sending their own password as `pass:password`.
 ### TODO
-1. Finish api for adding, removing, and editing resource `properites` and `links`
-2. Add option to allow users to remove their own resource file
-3. Additional storage options (sqlite, etc.)
-4. Manager interface
-5. Add in server-manager API examples (it's in the code... for now)
+1. Finish api for adding, removing, and editing resource `links`
+2. Additional storage options (sqlite, etc.)
+3. Manager interface
+4. Add in server-manager API examples (it's in the code... for now)
