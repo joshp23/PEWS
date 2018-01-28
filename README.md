@@ -36,3 +36,4 @@ If a user is `class:admin` then this user can alter the password of other users 
 2. Additional storage options (sqlite, etc.)
 3. Manager interface
 4. Add in server-manager API examples (it's in the code... for now)
+5. Strictly link-based resource capabilities (only account/user objects work for now)
