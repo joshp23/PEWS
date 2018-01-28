@@ -2,7 +2,7 @@
 /*	
  *------------------------------------------------------------
  *															
- *	PEWS (pew! pew!) - PHP Easy WebFinger Server 1.7.2
+ *	PEWS (pew! pew!) - PHP Easy WebFinger Server 1.8.2
  *
  *	This script enables webfinger support on a server that
  *	handles one or more domains.
@@ -16,9 +16,8 @@
 */
 // Set an alternate location for the data store. note: no trailing slash
 define( 'PEWS_DATA_STORE', 'store' );
-// allow a user to edit their own data?
-define( 'PEWS_USER_SELF_EDIT', true );
-// Begin PEWS server //------------------ DO NOT EDIT ANYTHING BELOW THIS LINE (Unless you REALLY mean it!) ------------------//
+//------------------ DO NOT EDIT ANYTHING BELOW THIS LINE (Unless you REALLY mean it!) ------------------//
+// Begin PEWS server
 $req = $_SERVER['REQUEST_METHOD'];
 if ($req === 'GET') {
 	// are we receiving a JSON object?
@@ -42,15 +41,38 @@ if ($req === 'GET') {
 	} else { $json_object = false; }
 	// JSON object or not, ready to process data
 	if( isset($_GET['resource'])) {
-		$subject  = explode(':', $_GET['resource']);
-		if($subject[0] === 'acct') {
-			$resource = pews_parse_account_string ( $subject[1]);
+		$querry = $_GET['resource'];
+		$subject  = explode(':', $querry);
+		$case = $subject[0];
+		if($case !== 'acct') { 
+			$acctAliasMap = PEWS_DATA_STORE . '/acctAliasMap.json';
+			if (file_exists($acctAliasMap)) {
+				$acctAliasArray = json_decode(file_get_contents($acctAliasMap), true);
+				if(array_key_exists($querry, $acctAliasArray)) {
+					$subjectOverride = $querry;
+					$aliasOverride = $acctAliasArray[$querry];
+					$case = 'acct';
+				}
+			}
+		} 
+		if($case == 'acct' ) {
+			$resource = isset($aliasOverride) ? pews_parse_account_string($aliasOverride) : pews_parse_account_string($subject[1]);
 			$acct_file = PEWS_DATA_STORE."/".$resource['host']."/".$resource['user'].".json";
 			// is there an account on file?
 			if (file_exists($acct_file)) {
 				// retrieve resource file and remove PEWS info
 				$data = json_decode(file_get_contents($acct_file), true);
 				if(isset($data['PEWS'])) unset($data['PEWS']);
+				// is this an alias request?
+				if(isset($subjectOverride) && isset($aliasOverride)) {
+					$resAA = $data['aliases'];
+					if (($key = array_search($subjectOverride, $resAA)) !== false) {
+						unset($resAA[$key]);
+					}
+					$resAA[] = $aliasOverride;
+					$data['subject'] = $subjectOverride;
+					$data['aliases'] = $resAA;
+				}
 				// check for rel request
 				if($json_object == false) {
 					if( isset($_GET['rel'])) {
@@ -75,23 +97,21 @@ if ($req === 'GET') {
 					}
 					$data['links'] = ($result == null) ? $data['links'] : $result;
 					$return = $data;
-
-
 				} else {
 					$return = $data;
 				}
 				// set return headers, response code, and return data
 	 			header('Access-Control-Allow-Origin: *');
 				http_response_code(200);
-		    } else {
+			} else {
 				http_response_code(404);
 				$return['statusCode'] = 404;
 				$return['message']    = 'Account ' . $resource['acct'] . ' not found.';
-		    }
+			}
 		} else {
-			http_response_code(400);
-			$return['statusCode'] = 400;
-			$return['message']    = 'Malformed query: ['.$subject[0].'] not recognized in ' .$subject. '.';
+			http_response_code(404);
+			$return['statusCode'] = 404;
+			$return['message']    = 'Resource ' . $querry . ' not found.';
 		}
 	} else {
 		http_response_code(400);
@@ -150,7 +170,7 @@ function pews_parse_account_string ( $acct ) {
 		$user = preg_replace('/^((\.*)(\/*))*/', '', $parts[0]);
 		$host = preg_replace('/^((\.*)(\/*))*/', '', $parts[1]);
 	} else {
-		$user = preg_replace('/^((\.*)(\/*))*/', '', $str);
+		$user = preg_replace('/^((\.*)(\/*))*/', '', $acct);
 		$host = $_SERVER['HTTP_HOST'];
 		$acct = $user . '@' . $host;
 	}
@@ -259,13 +279,38 @@ function pews_manager( $auth, $password ) {
 	// delete a host AND all resources
 	} elseif(isset($_POST['delHost'])) {
 		if(isset($auth) && $auth == 'admin') {
-			$host = preg_replace('/^((\.*)(\/*))*/', '', $_POST['addHost']);
+			$host = preg_replace('/^((\.*)(\/*))*/', '', $_POST['delHost']);
 			$old = PEWS_DATA_STORE . '/' . $host;
 			if (file_exists($old)) {
 				$files = glob($old.'/*');
-				foreach($files as $file) {
-				  if(is_file($file))
-					unlink($file);
+				$acctAliasMap = PEWS_DATA_STORE . '/acctAliasMap.json';
+				if(file_exists($acctAliasMap)) {
+					$acctAliasArray = json_decode(file_get_contents($acctAliasMap), true);
+					$did_del = 0;
+					foreach($files as $file) {
+						if(is_file($file)) {
+							$fileData = json_decode(file_get_contents($file), true);
+							if(isset($fileData['aliases'])) {
+								$acctAliases = $fileData['aliases'];
+								foreach($acctAliases as $alias) {
+									if(array_key_exists($alias, $acctAliasArray)) { 
+										unset($acctAliasArray[$alias]); 
+										$did_del++;
+									}
+								}
+							}
+							unlink($file);
+						}
+					}
+					if($did_del > 0) {
+						file_put_contents( $acctAliasMap, json_encode($acctAliasArray, JSON_UNESCAPED_SLASHES) );
+						chmod( $acctAliasMap, 0755 );
+					}
+				} else {
+					foreach($files as $file) {
+				  		if(is_file($file)) 
+							unlink($file);
+					}
 				}
 				$destroy = rmdir($old);
 				if(!$destroy) {
@@ -293,8 +338,8 @@ function pews_manager( $auth, $password ) {
 			$newHost = PEWS_DATA_STORE . '/' . $resource['host'];
 			if (!file_exists($newHost)){
 				http_response_code(404);
-				$response['statusCode'] = '404';
-				$response['message'] = 'The host '. $resource['host'] .' is not present, and must be on this system before resource accounts are added to it.';
+				$return['statusCode'] = '404';
+				$return['message'] = 'The host '. $resource['host'] .' is not present, and must be on this system before resource accounts are added to it.';
 			} else {
 				$newUser = $newHost .'/'. $resource['user'] .'.json';
 				if (!file_exists($newUser)){
@@ -305,8 +350,9 @@ function pews_manager( $auth, $password ) {
 					$data['PEWS'] = array( 'class' => $class, 'pass' => $pass );
 					$data['subject'] = 'acct:'. $resource['acct'];
 					if(isset($_POST['setAliases'])) {
-						$aliases = $_POST['setAliases'];
-						$data['aliases'] = is_array($aliases) ? $aliases : array($aliases);
+						if(is_array($_POST['setAliases'])) $aliases = $_POST['setAliases'];
+						else $aliases[] = $_POST['setAliases'];
+						$data['aliases'] = $aliases;
 					}
 					if(isset($_POST['setProps'])) {
 						if(is_array($_POST['setProps'])) {
@@ -335,7 +381,6 @@ function pews_manager( $auth, $password ) {
 							foreach($link as $k => $v) {
 								if($v == null) unset($link[$k]);
 							}
-
 							$data['links'] = $link;							
 						}
 					}
@@ -346,7 +391,19 @@ function pews_manager( $auth, $password ) {
 						$return['statusCode'] = 500;
 						$return['message'] = 'Resource not created';
 					} else {
-					chmod( $newUser, 0755 );
+						if(isset($aliases)){
+							foreach($aliases as $alias) $acctAliasArray[$alias] = $resource['acct'];
+							$acctAliasMap = PEWS_DATA_STORE . '/acctAliasMap.json';
+							if(!file_exists($acctAliasMap)) {
+								$dataAlt = $acctAliasArray;
+							} else {
+								$oldMap = json_decode(file_get_contents($acctAliasMap), true);
+								$dataAlt = array_merge($oldMap , $acctAliasArray);
+							}
+							file_put_contents( $acctAliasMap, json_encode($dataAlt, JSON_UNESCAPED_SLASHES) );
+							chmod( $acctAliasMap, 0755 );
+						}
+						chmod( $newUser, 0755 );
 						http_response_code(201);
 						$return['statusCode'] = 201;
 						$return['message'] = 'Resource: '.$resource['acct'].' successfully added';
@@ -372,12 +429,29 @@ function pews_manager( $auth, $password ) {
 				$resource = pews_parse_account_string( $resource );
 				$acct_file = PEWS_DATA_STORE ."/". $resource['host'] ."/". $resource['user'] .".json";
 				if (file_exists($acct_file)) {
+						$acctArray = json_decode(file_get_contents($acct_file), true);
+						$acctAliases = $acctArray['aliases'];
 						$destroy = unlink($acct_file);
 						if(!$destroy) {
 							http_response_code(500);
 							$return['statusCode'] = 500;
 							$return['message'] = 'Server Error: resource not destroyed.';
 						} else {
+							$acctAliasMap = PEWS_DATA_STORE . '/acctAliasMap.json';
+							if(file_exists($acctAliasMap)) {
+								$acctAliasArray = json_decode(file_get_contents($acctAliasMap), true);
+								$did_del = 0;
+								foreach($acctAliases as $alias) {
+									if(array_key_exists($alias, $acctAliasArray)) { 
+										unset($acctAliasArray[$alias]); 
+										$did_del++;
+									}
+								}
+								if($did_del > 0) {
+									file_put_contents( $acctAliasMap, json_encode($acctAliasArray, JSON_UNESCAPED_SLASHES) );
+									chmod( $acctAliasMap, 0755 );
+								}
+							}
 							http_response_code(200);
 							$return['statusCode'] = 200;
 							$return['message'] = 'Acct: '. $resource['acct'] .' successfully removed';
@@ -418,6 +492,18 @@ function pews_manager( $auth, $password ) {
 							$return['statusCode'] = 500;
 							$return['message'] = 'Could not write to resource file';
 						} else {
+							if(isset($aliases)){
+								foreach($aliases as $alias) $acctAliasArray[$alias] = $resource['acct'];
+								$acctAliasMap = PEWS_DATA_STORE . '/acctAliasMap.json';
+								if(!file_exists($acctAliasMap)) {
+									$dataAlt = $acctAliasArray;
+								} else {
+									$oldMap = json_decode(file_get_contents($acctAliasMap), true);
+									$dataAlt = array_merge($oldMap , $acctAliasArray);
+								}
+								file_put_contents( $acctAliasMap, json_encode($dataAlt, JSON_UNESCAPED_SLASHES) );
+								chmod( $acctAliasMap, 0755 );
+							}
 							http_response_code(200);
 							$return['statusCode'] = 200;
 							$return['message'] = 'Alias: '.$newAlias.' added to '.$resource['acct'];
@@ -471,6 +557,15 @@ function pews_manager( $auth, $password ) {
 								$return['statusCode'] = 500;
 								$return['info'] = 'Could not write to resource file';
 							} else {
+								$acctAliasMap = PEWS_DATA_STORE . '/acctAliasMap.json';
+								if(file_exists($acctAliasMap)) {
+									$acctAliasArray = json_decode(file_get_contents($acctAliasMap), true);
+									if(array_key_exists($oldAlias, $acctAliasArray)) {
+										unset($acctAliasArray[$oldAlias]);
+										file_put_contents( $acctAliasMap, json_encode($acctAliasArray, JSON_UNESCAPED_SLASHES) );
+										chmod( $acctAliasMap, 0755 );
+									}
+								}
 								http_response_code(200);
 								$return['statusCode'] = 200;
 								$return['info'] = 'Alias: '.$oldAlias.' removed '.$resource['acct'];
