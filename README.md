@@ -15,8 +15,7 @@
 ## Quick Start
 ### For single domain use
 1. Copy `.well-known/webfinger` into the root of your webserver.
-2. Open `.well-known/webfinger/index.php` and set `PEWS_DOMAIN_STRICT` to `true`
-3. Add a new host and account resource file to `./well-known/webfinger/store` folling the example provided and according to Webfinger [specs](https://tools.ietf.org/html/rfc7033).
+2. Add a new host and account resource file to `./well-known/webfinger/store` folling the example provided and according to Webfinger [specs](https://tools.ietf.org/html/rfc7033).
 ### For multiple domain use
 1. Copy this repo as `PEWS` to your host server, and make it readable by your webserver. ex: `/var/www/PEWS`
 2. Add a new host and account resource file to `./well-known/webfinger/store` folling the example provided and according to Webfinger [specs](https://tools.ietf.org/html/rfc7033).
@@ -33,7 +32,7 @@ The `PEWS` section of a PEWS resource file is not a part of the general Webfinge
 If a user is `class:admin` then this user can alter the password of other users by adding `auth:admin-name@example.com` to the above post data, sending their own password as `pass:password`.
 ### TODO
 1. Finish api for adding, removing, and editing resource `links`
-2. Additional storage options (sqlite, etc.)
+2. Additional storage options? (sqlite, etc.)
 3. Manager interface
 4. Add in server-manager API examples (it's in the code... for now)
 5. Strictly link-based resource capabilities (only account/user objects work for now)
