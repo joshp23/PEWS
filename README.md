@@ -36,3 +36,8 @@ If a user is `class:admin` then this user can alter the password of other users 
 3. Manager interface
 4. Add in server-manager API examples (it's in the code... for now)
 5. Strictly link-based resource capabilities (only account/user objects work for now)
+
+### Support Dev
+All of my published code is developed and maintained in spare time, if you would like to support development of this, or any of my published code, I have set up a Liberpay account for just this purpose. Thank you.
+
+<noscript><a href="https://liberapay.com/joshu42/donate"><img alt="Donate using Liberapay" src="https://liberapay.com/assets/widgets/donate.svg"></a></noscript>
